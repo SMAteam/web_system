@@ -23,5 +23,14 @@ def list1(request):
             'info':row[4],
             'time':row[5].strftime('%Y-%m-%d %H:%M:%S')
         })
-    res = json.dumps(res,ensure_ascii=False)
+    sql = "select count(*) from disaster_info;"
+    cursor.execute(sql)
+    count = cursor.fetchone();
+    res = {
+        "code": 200,
+        "msg": "success",
+        "totalCount": count[0],
+        "data": res
+    }
+    res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
