@@ -70,7 +70,7 @@ TEMPLATES = [
         },
     },
 ]
-
+# test
 WSGI_APPLICATION = 'web_system.wsgi.application'
 
 
