@@ -165,3 +165,28 @@ def list1(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+
+#  帖子列表展示
+def list2(request):
+    ret =[]
+    cursor = connection.cursor()
+    sql = 'select * from (select * from weibo_post limit 1000) as temp order by forward_num desc,comment_num desc;'
+    cursor.execute(sql)
+    data = cursor.fetchall();
+    for row in data:
+        ret.append({
+            'user_id': row[1],
+            'post_time': row[4].strftime('%Y-%m-%d %H:%M:%S'),
+            'forward_num': row[5],
+            'comment_num': row[6],
+            'like_num': row[7],
+            'post_content': row[3]
+        })
+    ret = {
+        "code": 200,
+        "msg": "success",
+        "totalCount": 1000,
+        "data": ret
+    }
+    ret = json.dumps(ret, ensure_ascii=False)
+    return HttpResponse(ret)

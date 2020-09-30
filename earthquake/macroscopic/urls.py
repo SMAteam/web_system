@@ -4,6 +4,7 @@
 # @Author  : hui
 # @Email   : huihuil@bupt.edu.cn
 # @File    : urls.py
+from django.conf.urls import url
 from django.urls import path,include
 from . import controller
 app_name = 'earthquake_macroscopic'
@@ -19,4 +20,5 @@ urlpatterns = [
     path('pie1',controller.pie1),
     # 列表展示
     path('list1',controller.list1),
+    url(r'^list2',controller.list2)
 ]
