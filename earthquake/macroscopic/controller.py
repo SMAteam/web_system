@@ -58,6 +58,29 @@ def map2(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+def map3(request):
+    province = request.GET.get('province','')
+    task_id = request.GET.get('task_id', '')
+    res = []
+    cursor = connection.cursor()
+    sql = f"select province, city, area, time, info from disaster_info where province='{province}' and task_id='{task_id}';"
+    cursor.execute(sql)
+    data = cursor.fetchall()
+    for row in data:
+        res.append({
+            "province": row[0],
+            "city": row[1],
+            "area": row[2],
+            "time": row[3],
+            "info": row[4],
+        })
+    res = {
+        "code": 200,
+        "msg": "success",
+        "data": res
+    }
+    res = json.dumps(res, ensure_ascii=False)
+    return HttpResponse(res)
 #
 # 折线图展示
 #
@@ -85,7 +108,7 @@ def line1(request):
 def bar1(request):
     res = []
     cursor = connection.cursor()
-    sql = "select DATE_FORMAT(post_time,'%Y-%m'),count(*) from post_extra,weibo_post where post_extra.task_id=weibo_post.task_id and post_extra.post_id=post_extra.post_id group by DATE_FORMAT(post_time,'%Y-%m');"
+    sql = "select DATE_FORMAT(post_time,'%Y-%m'),count(*) from post_extra as a,weibo_post as b where a.task_id=b.task_id and a.post_id=b.post_id group by DATE_FORMAT(post_time,'%Y-%m');"
     cursor.execute(sql)
     data = cursor.fetchall();
     for row in data:
@@ -142,7 +165,7 @@ def pie1(request):
 def list1(request):
     res = []
     cursor = connection.cursor()
-    sql = "select number,province,city,area,info,time from disaster_info;"
+    sql = "select number,province,city,area,info,time from disaster_info order by time desc;"
     cursor.execute(sql)
     data = cursor.fetchall();
     for row in data:

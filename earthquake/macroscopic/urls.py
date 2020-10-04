@@ -20,5 +20,5 @@ urlpatterns = [
     path('pie1',controller.pie1),
     # 列表展示
     path('list1',controller.list1),
-    url(r'^list2',controller.list2)
+    path('list2',controller.list2)
 ]
