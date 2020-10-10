@@ -4,9 +4,13 @@
 # @Author  : hui
 # @Email   : huihuil@bupt.edu.cn
 # @File    : controller.py
+import datetime
 import json
 from django.http import HttpResponse
 from django.db import connection
+from ..models import disaster_info
+from django.utils import timezone
+
 #
 # 地图展示
 #
@@ -59,20 +63,39 @@ def map2(request):
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
 def map3(request):
-    province = request.GET.get('province','')
-    task_id = request.GET.get('task_id', '')
+    def type_judge(time):
+        # time = utc.localize(time)
+        now_time = timezone.now()
+        print(now_time)
+        if now_time - datetime.timedelta(days=2) < time:
+            return 1
+        elif now_time - datetime.timedelta(days=60) < time:
+            return 2
+        else:
+            return 3
     res = []
     cursor = connection.cursor()
-    sql = f"select province, city, area, time, info from disaster_info where province='{province}' and task_id='{task_id}';"
+    sql = f"select lng, lat, province, city from loc as a, disaster_info as b where a.sheng=b.province and a.shi=b.city group by lat, lng, province, city;"
     cursor.execute(sql)
     data = cursor.fetchall()
     for row in data:
+        lng = row[0]
+        lat = row[1]
+        province = row[2]
+        city = row[3]
+        records = disaster_info.objects.filter(province=province, city=city).order_by('-time')
+        nums = len(records)
+        time = records.first().time
+        info = records.first().info
         res.append({
-            "province": row[0],
-            "city": row[1],
-            "area": row[2],
-            "time": row[3],
-            "info": row[4],
+            "lng": lng,# 经度
+            "lat": lat,# 维度
+            "province": province,# 省
+            "city": city, # 市
+            "title": "地震信息",
+            "content1": time.strftime('%Y-%m-%d %H:%M:%S') + province + city + "发生" + info,
+            "content2": "近年来共发生" + str(nums)+ "次地震",
+            "type": type_judge(time) # 1代表2天内发生过地震，2代表2个月内发生过地震，3代表其他
         })
     res = {
         "code": 200,
@@ -81,6 +104,29 @@ def map3(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+# def map3(request):
+#     province = request.GET.get('province','')
+#     task_id = request.GET.get('task_id', '')
+#     res = []
+#     cursor = connection.cursor()
+#     sql = f"select province, city, area, time, info from disaster_info where province='{province}' and task_id='{task_id}';"
+#     cursor.execute(sql)
+#     data = cursor.fetchall()
+#     for row in data:
+#         res.append({
+#             "province": row[0],
+#             "city": row[1],
+#             "area": row[2],
+#             "time": row[3],
+#             "info": row[4],
+#         })
+#     res = {
+#         "code": 200,
+#         "msg": "success",
+#         "data": res
+#     }
+#     res = json.dumps(res, ensure_ascii=False)
+#     return HttpResponse(res)
 #
 # 折线图展示
 #
@@ -164,26 +210,21 @@ def pie1(request):
 #
 def list1(request):
     res = []
-    cursor = connection.cursor()
-    sql = "select number,province,city,area,info,time from disaster_info order by time desc;"
-    cursor.execute(sql)
-    data = cursor.fetchall();
-    for row in data:
+    records = disaster_info.objects.order_by("-time")
+    for record in records:
         res.append({
-            'number': row[0],
-            'province': row[1],
-            'city': row[2],
-            'area': row[3],
-            'info': row[4],
-            'time': row[5].strftime('%Y-%m-%d %H:%M:%S')
+            'number': record.number,
+            'province': record.province,
+            'city': record.city,
+            'area': record.area,
+            'info': record.info,
+            'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
+            'authority': record.authority,  # 可信度，1高可信度，2为低可信度
         })
-    sql = "select count(*) from disaster_info;"
-    cursor.execute(sql)
-    data = cursor.fetchone();
     res = {
         "code": 200,
         "msg": "success",
-        "totalCount": data[0],
+        "totalCount": len(records),
         "data": res
     }
     res = json.dumps(res, ensure_ascii=False)
@@ -213,3 +254,23 @@ def list2(request):
     }
     ret = json.dumps(ret, ensure_ascii=False)
     return HttpResponse(ret)
+
+def list3(request):
+    province = "河北省"
+    city = "唐山市"
+    res = []
+    records = disaster_info.objects.filter(province=province, city=city).order_by("-time")
+    for record in records:
+        res.append({
+            'number': record.number,
+            'province': record.province,
+            'city': record.city,
+            'area': record.area,
+            'info': record.info,
+            'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
+            'authority': record.authority,  # 可信度，1高可信度，2为低可信度
+        })
+    res = json.dumps(res, ensure_ascii=False)
+    return HttpResponse(res)
+
+

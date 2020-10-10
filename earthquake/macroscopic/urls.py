@@ -12,6 +12,7 @@ urlpatterns = [
     # 地图展示
     path('map1',controller.map1),
     path('map2',controller.map2),
+    path('map3',controller.map3),
     # 折线图展示
     path('line1',controller.line1),
     # 直方图展示
@@ -20,5 +21,6 @@ urlpatterns = [
     path('pie1',controller.pie1),
     # 列表展示
     path('list1',controller.list1),
-    path('list2',controller.list2)
+    path('list2',controller.list2),
+    path('list3',controller.list3),
 ]
