@@ -8,16 +8,17 @@ import datetime
 import json
 from django.http import HttpResponse
 from django.db import connection
-from ..models import disaster_info
+from ..models import DisasterInfo
 from django.utils import timezone
-
+earthquake_id = '1_1'
 #
 # 地图展示
 #
+# 展示每个省份的地震数量
 def map1(request):
     res = []
     cursor = connection.cursor()
-    sql = "select province,count(*) from disaster_info group by province;"
+    sql = "select province,count(*) from disaster_info where authority='1' group by province;"
     cursor.execute(sql)
     data = cursor.fetchall()
     yingshe = {}
@@ -38,6 +39,7 @@ def map1(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+# 展示每个省地震的微博讨论数量
 def map2(request):
     res = []
     cursor = connection.cursor()
@@ -62,11 +64,11 @@ def map2(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+# 地图标记每个省市的最新地震情况
 def map3(request):
     def type_judge(time):
         # time = utc.localize(time)
         now_time = timezone.now()
-        print(now_time)
         if now_time - datetime.timedelta(days=2) < time:
             return 1
         elif now_time - datetime.timedelta(days=60) < time:
@@ -83,10 +85,19 @@ def map3(request):
         lat = row[1]
         province = row[2]
         city = row[3]
-        records = disaster_info.objects.filter(province=province, city=city).order_by('-time')
+        records = DisasterInfo.objects.filter(province=province, city=city).order_by('-time')
         nums = len(records)
-        time = records.first().time
-        info = records.first().info
+        time = None
+        info = None
+        authority = None
+        for record in records:
+            time = record.time
+            info = record.info
+            if record.authority == '1' or type_judge(time) == 1:
+                authority = '1'
+                break
+        if authority == None:
+            continue
         res.append({
             "lng": lng,# 经度
             "lat": lat,# 维度
@@ -172,6 +183,7 @@ def bar1(request):
 #
 # 饼图展示
 #
+# 展示不同等级的地震数量分布情况
 def pie1(request):
     res = []
     count = {
@@ -181,15 +193,13 @@ def pie1(request):
         "强震": 0,
     }
     cursor = connection.cursor()
-    sql = "select grade from disaster_info;"
-    cursor.execute(sql)
-    data = cursor.fetchall()
-    for row in data:
-        if  row[0] == None or len(row[0]) == 0 or float(row[0]) < 3.0:
+    records = DisasterInfo.objects.filter(task_id=earthquake_id, authority='1')
+    for record in records:
+        if  float(record.grade) < 3.0:
             count["弱震"] += 1
-        elif float(row[0]) >= 3.0 and float(row[0]) <= 4.5:
+        elif float(record.grade) >= 3.0 and float(record.grade) <= 4.5:
             count["有感地震"] += 1
-        elif float(row[0]) > 4.5 and float(row[0]) < 6.0:
+        elif float(record.grade) > 4.5 and float(record.grade) < 6.0:
             count["中强震"] += 1
         else:
             count["强震"] += 1
@@ -208,18 +218,22 @@ def pie1(request):
 #
 # 列表展示
 #
+# 展示全国地震的信息
 def list1(request):
     res = []
-    records = disaster_info.objects.order_by("-time")
+    records = DisasterInfo.objects.order_by("-time")
     for record in records:
+        authority = '1'
+        if record.grade == '-100' or record.authority == '0':
+            authority = '0'
         res.append({
             'number': record.number,
             'province': record.province,
-            'city': record.city,
-            'area': record.area,
-            'info': record.info,
+            'city': record.city if record.city != "-100" else "",
+            'area': record.area if record.area != "-100" else "",
+            'info': record.info if record.info != "-100" else "",
             'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
-            'authority': record.authority,  # 可信度，1高可信度，2为低可信度
+            'authority': authority if record.city != "-100" else "",  # 可信度，1高可信度，0为低可信度
         })
     res = {
         "code": 200,
@@ -229,8 +243,7 @@ def list1(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
-
-#  帖子列表展示
+# 帖子列表展示
 def list2(request):
     ret =[]
     cursor = connection.cursor()
@@ -254,13 +267,16 @@ def list2(request):
     }
     ret = json.dumps(ret, ensure_ascii=False)
     return HttpResponse(ret)
-
+# 展示具体某个省市的近期地震信息
 def list3(request):
     province = "河北省"
     city = "唐山市"
     res = []
-    records = disaster_info.objects.filter(province=province, city=city).order_by("-time")
+    records = DisasterInfo.objects.filter(province=province, city=city).order_by("-time")
     for record in records:
+        authority = '1'
+        if record.grade == '-100' or record.authority == '0':
+            authority = '0'
         res.append({
             'number': record.number,
             'province': record.province,
@@ -268,7 +284,7 @@ def list3(request):
             'area': record.area,
             'info': record.info,
             'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
-            'authority': record.authority,  # 可信度，1高可信度，2为低可信度
+            'authority': authority,  # 可信度，1高可信度，0为低可信度
         })
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)

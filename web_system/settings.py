@@ -80,7 +80,7 @@ WSGI_APPLICATION = 'web_system.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'social_media',
+        'NAME': 'social_database',
         'USER': 'root',
         'PASSWORD': 'buptweb007',
         'HOST': '152.136.59.62',

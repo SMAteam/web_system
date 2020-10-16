@@ -1,6 +1,6 @@
 from django.db import models
 
-class disaster_info(models.Model):
+class DisasterInfo(models.Model):
     province = models.CharField(max_length=30)
     city = models.CharField(max_length=30)
     area = models.CharField(max_length=30)
@@ -13,7 +13,7 @@ class disaster_info(models.Model):
     # 接下来设置联合主键
     class Meta:
         db_table = "disaster_info"
-class disaster_info_cache(models.Model):
+class DisasterInfoCache(models.Model):
     province = models.CharField(max_length=30)
     city = models.CharField(max_length=30)
     area = models.CharField(max_length=30)
@@ -24,14 +24,30 @@ class disaster_info_cache(models.Model):
     # 接下来设置联合主键
     class Meta:
         db_table = "disaster_info_cache"
-class parameter(models.Model):
+class Parameter(models.Model):
     task_id = models.CharField(max_length=10)
     last_time = models.DateTimeField(null=True, blank=True)
     class Meta:
         db_table = "parameter"
-class post_extra(models.Model):
+class PostExtra(models.Model):
+    # weiboPost = models.OneToOneField("WeiboPost", on_delete=models.CASCADE, to_field=t)
+
     task_id = models.CharField(max_length=10)
     post_id = models.CharField(max_length=30)
     cluster = models.IntegerField()
     class Meta:
         db_table = "post_extra"
+class WeiboPost(models.Model):
+    user_id = models.BigIntegerField(null=True,blank=True)
+    post_id = models.CharField(max_length=100,)
+    post_content = models.TextField(null=True,blank=True)
+    post_time = models.DateTimeField(null=True,blank=True)
+    forward_num = models.IntegerField(null=True,blank=True)
+    comment_num = models.IntegerField(null=True,blank=True)
+    like_num = models.IntegerField(null=True,blank=True)
+    repost_id = models.CharField(max_length=20,null=True,blank=True)
+    task_id = models.CharField(max_length=20)
+    class Meta:
+        unique_together = ("post_id","task_id")
+        ordering = ["-post_time","-forward_num","-comment_num","-like_num"]
+        db_table = "weibo_post"

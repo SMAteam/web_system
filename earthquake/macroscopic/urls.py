@@ -4,7 +4,6 @@
 # @Author  : hui
 # @Email   : huihuil@bupt.edu.cn
 # @File    : urls.py
-from django.conf.urls import url
 from django.urls import path,include
 from . import controller
 app_name = 'earthquake_macroscopic'
