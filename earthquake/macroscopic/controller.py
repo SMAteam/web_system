@@ -6,10 +6,14 @@
 # @File    : controller.py
 import datetime
 import json
+import re
+
 from django.http import HttpResponse
 from django.db import connection
 from ..models import DisasterInfo
 from django.utils import timezone
+import redis
+pool = redis.ConnectionPool(host='localhost', port=6379, decode_responses=True)
 earthquake_id = '1_1'
 #
 # 地图展示
@@ -41,6 +45,10 @@ def map1(request):
     return HttpResponse(res)
 # 展示每个省地震的微博讨论数量
 def map2(request):
+    r = redis.Redis(connection_pool = pool)
+    if r.exists("earthquake_macroscopic_map2"):
+        res = r.get("earthquake_macroscopic_map2")
+        return HttpResponse(res)
     res = []
     cursor = connection.cursor()
     sql = "select province,count(*) from disaster_info,post_extra where post_extra.cluster=disaster_info.number  group by province;"
@@ -161,8 +169,12 @@ def line1(request):
     return HttpResponse(res)
 #
 # 直方图展示
-#
+# 地震微博各月数量
 def bar1(request):
+    r = redis.Redis(connection_pool = pool)
+    if r.exists("earthquake_macroscopic_bar1"):
+        res = r.get("earthquake_macroscopic_bar1")
+        return HttpResponse(res)
     res = []
     cursor = connection.cursor()
     sql = "select DATE_FORMAT(post_time,'%Y-%m'),count(*) from post_extra as a,weibo_post as b where a.task_id=b.task_id and a.post_id=b.post_id group by DATE_FORMAT(post_time,'%Y-%m');"
@@ -233,7 +245,7 @@ def list1(request):
             'area': record.area if record.area != "-100" else "",
             'info': record.info if record.info != "-100" else "",
             'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
-            'authority': authority if record.city != "-100" else "",  # 可信度，1高可信度，0为低可信度
+            'authority': authority,  # 可信度，1高可信度，0为低可信度
         })
     res = {
         "code": 200,
@@ -245,32 +257,37 @@ def list1(request):
     return HttpResponse(res)
 # 帖子列表展示
 def list2(request):
-    ret =[]
+    r = redis.Redis(connection_pool = pool)
+    if r.exists("earthquake_macroscopic_list2"):
+        res = r.get("earthquake_macroscopic_list2")
+        return HttpResponse(res)
+    res =[]
     cursor = connection.cursor()
-    sql = 'select * from (select * from weibo_post limit 1000) as temp order by forward_num desc,comment_num desc;'
+    sql = 'select post_content,comment_num,like_num,forward_num,post_time,user_id,post_id from (select post_content,comment_num,like_num,forward_num,post_time,user_id,a.post_id from weibo_post as a, post_extra as b where a.task_id=b.task_id and a.post_id = b.post_id order by post_time desc limit 1000) as temp order by post_time desc, forward_num desc,comment_num desc;'
     cursor.execute(sql)
-    data = cursor.fetchall();
+    data = cursor.fetchall()
     for row in data:
-        ret.append({
-            'user_id': row[1],
+        res.append({
+            'user_id': row[5],
             'post_time': row[4].strftime('%Y-%m-%d %H:%M:%S'),
-            'forward_num': row[5],
-            'comment_num': row[6],
-            'like_num': row[7],
-            'post_content': row[3]
+            'forward_num': row[3],
+            'comment_num': row[1],
+            'like_num': row[2],
+            'post_content': re.sub("<#>|</#>|<@>.*?</@>|<u>.*?</u>", '', row[0]),
+            'post_url': "https://weibo.com/" + str(row[5]) + "/" + str(row[6]) + "/"
         })
-    ret = {
+    res = {
         "code": 200,
         "msg": "success",
         "totalCount": 1000,
-        "data": ret
+        "data": res
     }
-    ret = json.dumps(ret, ensure_ascii=False)
-    return HttpResponse(ret)
+    res = json.dumps(res, ensure_ascii=False)
+    return HttpResponse(res)
 # 展示具体某个省市的近期地震信息
 def list3(request):
-    province = "河北省"
-    city = "唐山市"
+    province = request.GET.get("province", "河北省")
+    city = request.GET.get("city", "唐山市")
     res = []
     records = DisasterInfo.objects.filter(province=province, city=city).order_by("-time")
     for record in records:
@@ -286,6 +303,12 @@ def list3(request):
             'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
             'authority': authority,  # 可信度，1高可信度，0为低可信度
         })
+    res = {
+        "code": 200,
+        "msg": "success",
+        "totalCount": 1000,
+        "data": res
+    }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
 

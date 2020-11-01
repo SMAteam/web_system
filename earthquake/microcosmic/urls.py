@@ -8,14 +8,21 @@
 from django.conf.urls import url
 from django.urls import path,include
 from . import controller
+
+
 app_name = 'earthquake_microcosmic'
 urlpatterns = [
     # 地图展示
     path('list1',controller.list1),
-    # path('map2',controller.map2),
-    # path('map3',controller.map3),
-    # # 折线图展示
-    # path('line1',controller.line1),
+
+    path('wordcloud1',controller.wordcloud1),
+    path('topiccloud1',controller.topiccloud1),
+    #
+    path('basestatistics1',controller.basestatistics1),
+    # 折线图展示
+    path('heattrend1',controller.heattrend1),
+    # 发帖地分布
+    path('postlocmap1',controller.postlocmap1),
     # # 直方图展示
     # path('bar1',controller.bar1),
     # # 饼图展示
