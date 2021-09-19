@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class DisasterInfo(models.Model):
     province = models.CharField(max_length=30)
     city = models.CharField(max_length=30)
@@ -8,33 +9,35 @@ class DisasterInfo(models.Model):
     info = models.CharField(max_length=255)
     number = models.IntegerField()
     grade = models.CharField(max_length=30)
-    task_id = models.CharField(max_length=10)
+    task = models.CharField(max_length=30)
     authority = models.CharField(max_length=10)
+    post_id = models.CharField(max_length=30)
     # 接下来设置联合主键
     class Meta:
         db_table = "disaster_info"
-class DisasterInfoCache(models.Model):
+class disaster_info_cache(models.Model):
     province = models.CharField(max_length=30)
     city = models.CharField(max_length=30)
     area = models.CharField(max_length=30)
     post_time = models.DateTimeField(null=True, blank=True)
     info = models.CharField(max_length=255)
     post_id = models.CharField(max_length=30)
-    task_id = models.CharField(max_length=10)
+    task = models.CharField(max_length=30)
+    media  = models.CharField(max_length=30)
     # 接下来设置联合主键
     class Meta:
         db_table = "disaster_info_cache"
-class Parameter(models.Model):
+class parameter(models.Model):
     task_id = models.CharField(max_length=10)
-    last_time = models.DateTimeField(null=True, blank=True)
+    last_time_weibo = models.DateTimeField(null=True, blank=True)
+    last_time_xinwen = models.DateTimeField(null=True, blank=True)
     class Meta:
         db_table = "parameter"
 class PostExtra(models.Model):
-    # weiboPost = models.OneToOneField("WeiboPost", on_delete=models.CASCADE, to_field=t)
-
-    task_id = models.CharField(max_length=10)
     post_id = models.CharField(max_length=30)
     cluster = models.IntegerField()
+    task = models.CharField(max_length=30)
+    media  = models.CharField(max_length=30)
     class Meta:
         db_table = "post_extra"
 class WeiboPost(models.Model):

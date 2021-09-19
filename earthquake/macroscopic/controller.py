@@ -8,21 +8,21 @@ import datetime
 import json
 import re
 
+import pymongo
 from django.http import HttpResponse
 from django.db import connection
 from ..models import DisasterInfo
 from django.utils import timezone
 import redis
 pool = redis.ConnectionPool(host='localhost', port=6379, decode_responses=True)
-earthquake_id = '1_1'
-#
-# 地图展示
-#
+client = pymongo.MongoClient(host = "152.136.59.62", port = 27017, maxPoolSize=50)
+
 # 展示每个省份的地震数量
+task = "1"
 def map1(request):
     res = []
     cursor = connection.cursor()
-    sql = "select province,count(*) from disaster_info where authority='1' group by province;"
+    sql = "select province,count(*) from disaster_info group by province;"
     cursor.execute(sql)
     data = cursor.fetchall()
     yingshe = {}
@@ -44,27 +44,33 @@ def map1(request):
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
 # 展示每个省地震的微博讨论数量
+# 加了Redis缓存
 def map2(request):
-    r = redis.Redis(connection_pool = pool)
-    if r.exists("earthquake_macroscopic_map2"):
-        res = r.get("earthquake_macroscopic_map2")
+    redisConn = redis.Redis(connection_pool=pool)
+    if redisConn.exists("earthquake_macroscopic_map2"):
+        res = {
+            "code": 200,
+            "msg": "success",
+            "data": eval(redisConn.get("earthquake_macroscopic_map2"))
+        }
+        res = json.dumps(res, ensure_ascii=False)
         return HttpResponse(res)
+    db = client.admin
+    db.authenticate('root', 'buptweb007')
+    db = client.SocialMedia
+    pipeline = [
+        {"$match": {"task": task, "media": "1"}},
+        {"$group": {"_id": "$province","count": {"$sum": 1}}}
+    ]
+    records = db.Posts.aggregate(pipeline, allowDiskUse=True)
     res = []
-    cursor = connection.cursor()
-    sql = "select province,count(*) from disaster_info,post_extra where post_extra.cluster=disaster_info.number  group by province;"
-    cursor.execute(sql)
-    data = cursor.fetchall()
-    yingshe = {}
-    for row in data:
-        pro = row[0];
-        yingshe[pro] = pro[:2];
-    yingshe["内蒙古自治区"] = "内蒙古"
-    yingshe["黑龙江省"] = "黑龙江"
-    for row in data:
-        res.append({
-            "name": yingshe[row[0]],
-            "value": row[1]
-        })
+    for row in records:
+        if  row.get("_id") != "海外" and row.get("_id") != "-100":
+            res.append({
+                "name": row.get("_id"),
+                "value": int(row.get("count"))
+            })
+    redisConn.set("earthquake_macroscopic_map2",res)
     res = {
         "code": 200,
         "msg": "success",
@@ -123,36 +129,11 @@ def map3(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
-# def map3(request):
-#     province = request.GET.get('province','')
-#     task_id = request.GET.get('task_id', '')
-#     res = []
-#     cursor = connection.cursor()
-#     sql = f"select province, city, area, time, info from disaster_info where province='{province}' and task_id='{task_id}';"
-#     cursor.execute(sql)
-#     data = cursor.fetchall()
-#     for row in data:
-#         res.append({
-#             "province": row[0],
-#             "city": row[1],
-#             "area": row[2],
-#             "time": row[3],
-#             "info": row[4],
-#         })
-#     res = {
-#         "code": 200,
-#         "msg": "success",
-#         "data": res
-#     }
-#     res = json.dumps(res, ensure_ascii=False)
-#     return HttpResponse(res)
-#
-# 折线图展示
-#
+# 每个月的地震数量
 def line1(request):
     res = []
     cursor = connection.cursor()
-    sql = "select DATE_FORMAT(time,'%Y-%m'),count(*) from disaster_info group by DATE_FORMAT(time,'%Y-%m');"
+    sql = f"select DATE_FORMAT(time,'%Y-%m'),count(*) from disaster_info where task='{task}' group by DATE_FORMAT(time,'%Y-%m');"
     cursor.execute(sql)
     data = cursor.fetchall();
     for row in data:
@@ -168,23 +149,66 @@ def line1(request):
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
 #
-# 直方图展示
-# 地震微博各月数量
+# 每个月相关微博数量
+# 查询稍慢
 def bar1(request):
-    r = redis.Redis(connection_pool = pool)
-    if r.exists("earthquake_macroscopic_bar1"):
-        res = r.get("earthquake_macroscopic_bar1")
+    redisConn = redis.Redis(connection_pool=pool)
+    if redisConn.exists("earthquake_macroscopic_bar1"):
+        # res = json.loads(redisConn.get("earthquake_macroscopic_bar1"))
+        res = {
+            "code": 200,
+            "msg": "success",
+            "data": eval(redisConn.get("earthquake_macroscopic_bar1"))
+        }
+        res = json.dumps(res, ensure_ascii=False)
         return HttpResponse(res)
+    db = client.admin
+    db.authenticate('root', 'buptweb007')
+    db = client.SocialMedia
+    records = db.Posts.aggregate([{
+        "$match": {
+            "task": task
+        }
+    },{
+        "$project": {
+            "post_time": {
+                "$dateToString": {
+                    "format": "%Y-%m",
+                    "date": "$post_time"
+                }
+            },
+        }
+    },{
+        "$group": {
+            "_id": "$post_time",
+            "count": {
+                "$sum": 1
+            }
+        }
+    },{
+        "$project": {
+            "name": {
+                "$dateFromString": {
+                    "dateString": "$_id",
+                }
+            },
+            "value": {
+                "$abs": "$count"
+            },
+        }
+    },{
+        "$sort":{
+            "name":1
+        }
+    }
+
+    ])
     res = []
-    cursor = connection.cursor()
-    sql = "select DATE_FORMAT(post_time,'%Y-%m'),count(*) from post_extra as a,weibo_post as b where a.task_id=b.task_id and a.post_id=b.post_id group by DATE_FORMAT(post_time,'%Y-%m');"
-    cursor.execute(sql)
-    data = cursor.fetchall();
-    for row in data:
-        res.append({
-            "name": row[0],
-            "value": row[1]
-        })
+    for row in records:
+        del row["_id"]
+        row["name"] = row["name"].strftime('%Y-%m')
+        res.append(row)
+    redisConn.set("earthquake_macroscopic_bar1", res)
     res = {
         "code": 200,
         "msg": "success",
@@ -195,7 +219,7 @@ def bar1(request):
 #
 # 饼图展示
 #
-# 展示不同等级的地震数量分布情况
+# 不同等级地震的数量分布情况
 def pie1(request):
     res = []
     count = {
@@ -204,16 +228,15 @@ def pie1(request):
         "中强震": 0,
         "强震": 0,
     }
-    cursor = connection.cursor()
-    records = DisasterInfo.objects.filter(task_id=earthquake_id, authority='1')
+    records = DisasterInfo.objects.filter(task=task)
     for record in records:
-        if  float(record.grade) < 3.0:
+        if  float(record.grade) < 3.0 and float(record.grade) != -100:
             count["弱震"] += 1
         elif float(record.grade) >= 3.0 and float(record.grade) <= 4.5:
             count["有感地震"] += 1
         elif float(record.grade) > 4.5 and float(record.grade) < 6.0:
             count["中强震"] += 1
-        else:
+        elif float(record.grade) >= 6.0:
             count["强震"] += 1
     for k,v in count.items():
         res.append({
@@ -227,13 +250,11 @@ def pie1(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
-#
-# 列表展示
-#
+
 # 展示全国地震的信息
 def list1(request):
     res = []
-    records = DisasterInfo.objects.order_by("-time")
+    records = DisasterInfo.objects.filter(task=task).order_by("-time")
     for record in records:
         authority = '1'
         if record.grade == '-100' or record.authority == '0':
@@ -255,41 +276,59 @@ def list1(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
-# 帖子列表展示
+# 最新帖子消息展示
+# 前台修改
 def list2(request):
-    r = redis.Redis(connection_pool = pool)
-    if r.exists("earthquake_macroscopic_list2"):
-        res = r.get("earthquake_macroscopic_list2")
-        return HttpResponse(res)
-    res =[]
-    cursor = connection.cursor()
-    sql = 'select post_content,comment_num,like_num,forward_num,post_time,user_id,post_id from (select post_content,comment_num,like_num,forward_num,post_time,user_id,a.post_id from weibo_post as a, post_extra as b where a.task_id=b.task_id and a.post_id = b.post_id order by post_time desc limit 1000) as temp order by post_time desc, forward_num desc,comment_num desc;'
-    cursor.execute(sql)
-    data = cursor.fetchall()
-    for row in data:
-        res.append({
-            'user_id': row[5],
-            'post_time': row[4].strftime('%Y-%m-%d %H:%M:%S'),
-            'forward_num': row[3],
-            'comment_num': row[1],
-            'like_num': row[2],
-            'post_content': re.sub("<#>|</#>|<@>.*?</@>|<u>.*?</u>", '', row[0]),
-            'post_url': "https://weibo.com/" + str(row[5]) + "/" + str(row[6]) + "/"
-        })
+    media = request.GET.get("media", "1")
+    db = client.admin
+    db.authenticate('root', 'buptweb007')
+    db = client.SocialMedia
+    records = db.posts.find({
+        "task": task,
+        "media": str(media),
+    }, {
+        "_id": 0,
+        "title": 1,
+        "post_content": 1,
+        "post_time": 1,
+        "post_url": 1,
+        "like_num": 1,
+        "user_name": 1,
+        "forward_num": 1,
+        "comment_num": 1,
+        "brief": 1,
+        "media": 1,
+        "label": 1
+    }).sort([("post_time",-1)]).limit(1000)
+    res = []
+    for row in records:
+        row["post_time"] = row["post_time"].strftime('%Y-%m-%d %H:%M:%S')
+        if str(media) == "2":
+            row['post_content'] = row['brief']
+        else:
+            row['post_content'] = re.sub("(<@>.*?</@>)|#|<#>|</#>|(<u>.*?</u>)", "", row['post_content'])
+        res.append(row)
     res = {
         "code": 200,
         "msg": "success",
-        "totalCount": 1000,
+        "totalCount": len(res),
         "data": res
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
-# 展示具体某个省市的近期地震信息
+# 展示具体某个省市的近期地震信息，可以接受province,city,number
 def list3(request):
-    province = request.GET.get("province", "河北省")
-    city = request.GET.get("city", "唐山市")
+    province = request.GET.get("province", "")
+    city = request.GET.get("city", "")
+    if province == "":
+        row = DisasterInfo.objects.order_by("time").last()
+        province = row.province
+        city = row.city
     res = []
-    records = DisasterInfo.objects.filter(province=province, city=city).order_by("-time")
+    if city != "":
+        records = DisasterInfo.objects.filter(task=task,province=province, city=city).order_by("-time")
+    else:
+        records = DisasterInfo.objects.filter(task=task, province=province).order_by("-time")
     for record in records:
         authority = '1'
         if record.grade == '-100' or record.authority == '0':
@@ -297,8 +336,8 @@ def list3(request):
         res.append({
             'number': record.number,
             'province': record.province,
-            'city': record.city,
-            'area': record.area,
+            'city': record.city if record.city != "-100" else "",
+            'area': record.area if record.area != "-100" else "",
             'info': record.info,
             'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
             'authority': authority,  # 可信度，1高可信度，0为低可信度
@@ -306,10 +345,118 @@ def list3(request):
     res = {
         "code": 200,
         "msg": "success",
-        "totalCount": 1000,
+        "province": province,
+        "city": city,
+        "totalCount": len(res),
         "data": res
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+# 地震事件总数量，舆情总数量统计
+def basestatistics(request):
+    redisConn = redis.Redis(connection_pool=pool)
+    # redisConn.delete("earthquake_macroscopic_basestatistics")
+    if redisConn.exists("earthquake_macroscopic_basestatistics"):
+        res = {
+            "code": 200,
+            "msg": "success",
+            "data": eval(redisConn.get("earthquake_macroscopic_basestatistics"))
+        }
+        res = json.dumps(res, ensure_ascii=False)
+        return HttpResponse(res)
+    db = client.admin
+    db.authenticate('root', 'buptweb007')
+    db = client.SocialMedia
+    countTotal = db.posts.find({
+        "task": task,
+        "label": "1"
+    }).count()
+    countEvent = DisasterInfo.objects.filter(task=task).count()
+    data = {}
+    data['countTotal'] = countTotal
+    data['countEvent'] = countEvent
+    res = {
+        "code": 200,
+        "msg": "success",
+        "data": data
+    }
+    # redisConn.set("earthquake_macroscopic_basestatistics", data)
+    res = json.dumps(res, ensure_ascii=False)
+    return HttpResponse(res)
+def redisCache(request):
+    task = "1"
+    client = pymongo.MongoClient(host="152.136.59.62", port=27017, maxPoolSize=50)
+    redisConn = redis.Redis(connection_pool=pool)
 
+    db = client.admin
+    db.authenticate('root', 'buptweb007')
+    db = client.SocialMedia
+    pipeline = [
+        {"$match": {"task": task, "media": "1"}},
+        {"$group": {"_id": "$province", "count": {"$sum": 1}}}
+    ]
+    records = db.Posts.aggregate(pipeline)
+    res = []
+    for row in records:
+        if row.get("_id") != "海外" and row.get("_id") != "-100":
+            res.append({
+                "name": row.get("_id"),
+                "value": int(row.get("count"))
+            })
+    redisConn.set("earthquake_macroscopic_map2", res)
+
+    records = db.Posts.aggregate([{
+        "$match": {
+            "task": task
+        }
+    }, {
+        "$project": {
+            "post_time": {
+                "$dateToString": {
+                    "format": "%Y-%m",
+                    "date": "$post_time"
+                }
+            },
+        }
+    }, {
+        "$group": {
+            "_id": "$post_time",
+            "count": {
+                "$sum": 1
+            }
+        }
+    }, {
+        "$project": {
+            "name": {
+                "$dateFromString": {
+                    "dateString": "$_id",
+                }
+            },
+            "value": {
+                "$abs": "$count"
+            },
+        }
+    }, {
+        "$sort": {
+            "_id": 1
+        }
+    }
+
+    ], allowDiskUse=True)
+    res = []
+    for row in records:
+        del row["_id"]
+        row["name"] = row["name"].strftime('%Y-%m')
+        res.append(row)
+    redisConn.set("earthquake_macroscopic_bar1", res)
+    res = {}
+    countTotal = db.posts.find({
+        "task": task,
+        "label": "1"
+    }).count()
+    countEvent = DisasterInfo.objects.filter(task=task).count()
+    res['countTotal'] = countTotal
+    res['countEvent'] = countEvent
+    redisConn.set("earthquake_macroscopic_basestatistics", res)
+    return HttpResponse("缓存更新成功")
 

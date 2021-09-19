@@ -22,4 +22,8 @@ urlpatterns = [
     path('list1',controller.list1),
     path('list2',controller.list2),
     path('list3',controller.list3),
+    # 总统统计
+    path('basestatistics',controller.basestatistics),
+    # 缓存更新
+    path('redisCache',controller.redisCache),
 ]
