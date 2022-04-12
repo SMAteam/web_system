@@ -15,7 +15,7 @@ from ..models import DisasterInfo
 from django.utils import timezone
 import redis
 pool = redis.ConnectionPool(host='localhost', port=6379, decode_responses=True)
-client = pymongo.MongoClient(host = "152.136.59.62", port = 27017, maxPoolSize=50)
+client = pymongo.MongoClient(host = "localhost", port = 27017, maxPoolSize=50)
 
 # 展示每个省份的地震数量
 task = "1"
@@ -276,6 +276,32 @@ def list1(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+
+# 列出热点事件
+def listHot(request):
+    res = []
+    records = DisasterInfo.objects.filter(task=task).order_by("-hot")
+    for record in records:
+        authority = '1'
+        if record.grade == '-100' or record.authority == '0':
+            authority = '0'
+        res.append({
+            'number': record.number,
+            'province': record.province,
+            'city': record.city if record.city != "-100" else "",
+            'area': record.area if record.area != "-100" else "",
+            'info': record.info if record.info != "-100" else "",
+            'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
+            'authority': authority,  # 可信度，1高可信度，0为低可信度
+        })
+    res = {
+        "code": 200,
+        "msg": "success",
+        "totalCount": len(records),
+        "data": res
+    }
+    res = json.dumps(res, ensure_ascii=False)
+    return HttpResponse(res)
 # 最新帖子消息展示
 # 前台修改
 def list2(request):
@@ -385,7 +411,7 @@ def basestatistics(request):
     return HttpResponse(res)
 def redisCache(request):
     task = "1"
-    client = pymongo.MongoClient(host="152.136.59.62", port=27017, maxPoolSize=50)
+    client = pymongo.MongoClient(host="localhost", port=27017, maxPoolSize=50)
     redisConn = redis.Redis(connection_pool=pool)
 
     db = client.admin
@@ -452,7 +478,6 @@ def redisCache(request):
     res = {}
     countTotal = db.posts.find({
         "task": task,
-        "label": "1"
     }).count()
     countEvent = DisasterInfo.objects.filter(task=task).count()
     res['countTotal'] = countTotal

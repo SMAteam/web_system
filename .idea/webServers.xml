@@ -2,8 +2,8 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="679007f6-c7e2-4252-89c5-bd2b266022b8" name="灾害分析系统">
-        <fileTransfer rootFolder="/home/ubuntu" accessType="SFTP" host="152.136.59.62" port="22" sshConfigId="be851273-ef2f-4303-986b-0389490c2c02" sshConfig="ubuntu@152.136.59.62:22 password">
+      <webServer id="02311f0c-220d-4841-a9fd-916c83d80c45" name="刘辉的毕设系统">
+        <fileTransfer rootFolder="/home/ubuntu" accessType="SFTP" host="49.232.229.126" port="22" sshConfigId="be851273-ef2f-4303-986b-0389490c2c02" sshConfig="ubuntu@49.232.229.126:22 password">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

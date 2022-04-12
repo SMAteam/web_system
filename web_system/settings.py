@@ -85,7 +85,7 @@ DATABASES = {
         'NAME': 'social_database',
         'USER': 'root',
         'PASSWORD': 'buptweb007',
-        'HOST': '152.136.59.62',
+        'HOST': 'localhost',
         'PORT': '3307',
         'OPTIONS': {'charset': 'utf8mb4'}
     },

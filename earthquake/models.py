@@ -12,6 +12,7 @@ class DisasterInfo(models.Model):
     task = models.CharField(max_length=30)
     authority = models.CharField(max_length=10)
     post_id = models.CharField(max_length=30)
+    hot = models.IntegerField()
     # 接下来设置联合主键
     class Meta:
         db_table = "disaster_info"

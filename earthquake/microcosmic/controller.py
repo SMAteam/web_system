@@ -15,12 +15,13 @@ from django.http import HttpResponse
 from py2neo import Graph
 stopwords_path = os.path.join(os.path.dirname(__file__),"resources", "stop_words.txt")
 stopwords = [line.strip() for line in open(stopwords_path, 'r', encoding='utf-8').readlines()]
-client = pymongo.MongoClient(host = "152.136.59.62", port = 27017, maxPoolSize=50)
-graph = Graph(
-    "http://49.232.229.126:7474",
-    username="neo4j",
-    password="123456"
-)
+client = pymongo.MongoClient(host = "localhost", port = 27017, maxPoolSize=50)
+# graph = Graph(
+#     "http://49.232.229.126:7474",
+#     username="neo4j",
+#     password="123456"
+# )
+graph = None
 task = "1"
 # 列出具体某次灾害的微博文本
 def list1(request):
@@ -54,6 +55,8 @@ def list1(request):
         row["post_time"] = row["post_time"].strftime('%Y-%m-%d %H:%M:%S')
         if row["media"] == "1":
             row['post_content'] = re.sub("(<@>.*?</@>)|#|<#>|</#>|(<u>.*?</u>)", "", row['post_content'])
+            # if "项目捐款成功" in row['post_content']:
+            #     continue
         elif row["media"] == "2":
             row["post_content"] = row["brief"]
         res.append(row)
@@ -80,6 +83,51 @@ def list1(request):
 # 列出当地灾害史
 def list2(request):
     number = int(request.GET.get("number", -1))
+    if number == 859:
+        db = client.admin
+        db.authenticate('root', 'buptweb007')
+        db = client.SocialMedia
+        q = ["KgA2QzE3I", "KgAo3By77", "KgAMFsryJ", "KgAMxfrhs", "KgDXfmBJb", "KgF7DgscR", "KgF8s8d5H", "KgOTtF6rZ","KgX7rAI9F"]
+        res = []
+        tmp = []
+        for i in q:
+            records = db.Posts.find({
+                "task": task,
+                "media": "1",
+                "cluster": number,
+                "post_id": i,
+            }, {
+                "post_content": 1,
+                "post_time": 1,
+                "post_id": 1,
+            })
+            for r in records:
+                tmp.append(r)
+
+        for record in tmp:
+            post_content = record.get("post_content", "")
+            post_content = re.sub("(<@>.*?</@>)|#|<#>|</#>|(<u>.*?</u>)", "", post_content)
+            post_id = record.get("post_id", "")
+            post_time = record.get("post_time").strftime('%Y-%m-%d %H:%M')
+            res.append({
+                'number': 0,
+                'province': "",
+                'city': "",
+                'area': post_time,
+                'info': post_content,
+                'time': "record.time.strftime('%Y-%m-%d %H:%M:%S')",
+                'authority': 1,  # 可信度，1高可信度，0为低可信度
+            })
+        res = {
+            "code": 200,
+            "msg": "success",
+            "province": "",
+            "city": "",
+            "totalCount": len(res),
+            "data": res
+        }
+        res = json.dumps(res, ensure_ascii=False)
+        return HttpResponse(res)
     if number == -1:
         number = DisasterInfo.objects.filter(task=task).order_by("number").last().number
     province = DisasterInfo.objects.filter(task=task, number=number).last().province
@@ -115,6 +163,8 @@ def list2(request):
     }
     res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
+
+
 # 列出具体某次灾害的微博词云
 def wordcloud1(request):
     number = int(request.GET.get("number", -1))
