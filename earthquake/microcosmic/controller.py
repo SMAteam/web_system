@@ -8,7 +8,7 @@ import collections
 import json
 import os
 import re
-from ..models import DisasterInfo
+from ..models import DisasterInfo, event_time_line
 import jieba
 import pymongo
 from django.http import HttpResponse
@@ -83,41 +83,20 @@ def list1(request):
 # 列出当地灾害史
 def list2(request):
     number = int(request.GET.get("number", -1))
-    if number == 859:
-        db = client.admin
-        db.authenticate('root', 'buptweb007')
-        db = client.SocialMedia
-        q = ["KgA2QzE3I", "KgAo3By77", "KgAMFsryJ", "KgAMxfrhs", "KgDXfmBJb", "KgF7DgscR", "KgF8s8d5H", "KgOTtF6rZ","KgX7rAI9F"]
-        res = []
-        tmp = []
-        for i in q:
-            records = db.Posts.find({
-                "task": task,
-                "media": "1",
-                "cluster": number,
-                "post_id": i,
-            }, {
-                "post_content": 1,
-                "post_time": 1,
-                "post_id": 1,
-            })
-            for r in records:
-                tmp.append(r)
-
-        for record in tmp:
-            post_content = record.get("post_content", "")
-            post_content = re.sub("(<@>.*?</@>)|#|<#>|</#>|(<u>.*?</u>)", "", post_content)
-            post_id = record.get("post_id", "")
-            post_time = record.get("post_time").strftime('%Y-%m-%d %H:%M')
-            res.append({
-                'number': 0,
-                'province': "",
-                'city': "",
-                'area': post_time,
-                'info': post_content,
-                'time': "record.time.strftime('%Y-%m-%d %H:%M:%S')",
-                'authority': 1,  # 可信度，1高可信度，0为低可信度
-            })
+    records = event_time_line.objects.filter(task=task, number=number)
+    res = []
+    for record in records:
+        post_time = record.time.strftime('%Y-%m-%d %H:%M')
+        post_content = record.content
+        res.append({
+            'number': 0,
+            'province': "",
+            'city': "",
+            'area': post_time,
+            'info': post_content,
+            'time': "record.time.strftime('%Y-%m-%d %H:%M:%S')",
+            'authority': 1,  # 可信度，1高可信度，0为低可信度
+        })
         res = {
             "code": 200,
             "msg": "success",
@@ -126,42 +105,87 @@ def list2(request):
             "totalCount": len(res),
             "data": res
         }
-        res = json.dumps(res, ensure_ascii=False)
-        return HttpResponse(res)
-    if number == -1:
-        number = DisasterInfo.objects.filter(task=task).order_by("number").last().number
-    province = DisasterInfo.objects.filter(task=task, number=number).last().province
-    city = DisasterInfo.objects.filter(task=task, number=number).last().city
-    area = DisasterInfo.objects.filter(task=task, number=number).last().area
-    if province != '-100':
-        records = DisasterInfo.objects.filter(task=task, province=province).order_by("-time")
-    if city != '-100':
-        records = DisasterInfo.objects.filter(task=task, province=province, city=city).order_by("-time")
-    if area != '-100':
-        records = DisasterInfo.objects.filter(task=task, province=province, area=area).order_by("-time")
-    res = []
-    for record in records:
-        authority = '1'
-        if record.grade == '-100' or record.authority == '0':
-            authority = '0'
-        res.append({
-            'number': record.number,
-            'province': record.province,
-            'city': record.city if record.city != "-100" else "",
-            'area': record.area if record.area != "-100" else "",
-            'info': record.info,
-            'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
-            'authority': authority,  # 可信度，1高可信度，0为低可信度
-        })
-    res = {
-        "code": 200,
-        "msg": "success",
-        "province": province,
-        "city": city,
-        "totalCount": len(res),
-        "data": res
-    }
-    res = json.dumps(res, ensure_ascii=False)
+    # if number == 859:
+    #     db = client.admin
+    #     db.authenticate('root', 'buptweb007')
+    #     db = client.SocialMedia
+    #     q = ["KgA2QzE3I", "KgAo3By77", "KgAMFsryJ", "KgAMxfrhs", "KgDXfmBJb", "KgF7DgscR", "KgF8s8d5H", "KgOTtF6rZ","KgX7rAI9F"]
+    #     res = []
+    #     tmp = []
+    #     for i in q:
+    #         records = db.Posts.find({
+    #             "task": task,
+    #             "media": "1",
+    #             "cluster": number,
+    #             "post_id": i,
+    #         }, {
+    #             "post_content": 1,
+    #             "post_time": 1,
+    #             "post_id": 1,
+    #         })
+    #         for r in records:
+    #             tmp.append(r)
+    #
+    #     for record in tmp:
+    #         post_content = record.get("post_content", "")
+    #         post_content = re.sub("(<@>.*?</@>)|#|<#>|</#>|(<u>.*?</u>)", "", post_content)
+    #         post_id = record.get("post_id", "")
+    #         post_time = record.get("post_time").strftime('%Y-%m-%d %H:%M')
+    #         res.append({
+    #             'number': 0,
+    #             'province': "",
+    #             'city': "",
+    #             'area': post_time,
+    #             'info': post_content,
+    #             'time': "record.time.strftime('%Y-%m-%d %H:%M:%S')",
+    #             'authority': 1,  # 可信度，1高可信度，0为低可信度
+    #         })
+    #     res = {
+    #         "code": 200,
+    #         "msg": "success",
+    #         "province": "",
+    #         "city": "",
+    #         "totalCount": len(res),
+    #         "data": res
+    #     }
+    #     res = json.dumps(res, ensure_ascii=False)
+    #     return HttpResponse(res)
+
+
+    # if number == -1:
+    #     number = DisasterInfo.objects.filter(task=task).order_by("number").last().number
+    # province = DisasterInfo.objects.filter(task=task, number=number).last().province
+    # city = DisasterInfo.objects.filter(task=task, number=number).last().city
+    # area = DisasterInfo.objects.filter(task=task, number=number).last().area
+    # if province != '-100':
+    #     records = DisasterInfo.objects.filter(task=task, province=province).order_by("-time")
+    # if city != '-100':
+    #     records = DisasterInfo.objects.filter(task=task, province=province, city=city).order_by("-time")
+    # if area != '-100':
+    #     records = DisasterInfo.objects.filter(task=task, province=province, area=area).order_by("-time")
+    # res = []
+    # for record in records:
+    #     authority = '1'
+    #     if record.grade == '-100' or record.authority == '0':
+    #         authority = '0'
+    #     res.append({
+    #         'number': record.number,
+    #         'province': record.province,
+    #         'city': record.city if record.city != "-100" else "",
+    #         'area': record.area if record.area != "-100" else "",
+    #         'info': record.info,
+    #         'time': record.time.strftime('%Y-%m-%d %H:%M:%S'),
+    #         'authority': authority,  # 可信度，1高可信度，0为低可信度
+    #     })
+    # res = {
+    #     "code": 200,
+    #     "msg": "success",
+    #     "province": province,
+    #     "city": city,
+    #     "totalCount": len(res),
+    #     "data": res
+    # }
+    # res = json.dumps(res, ensure_ascii=False)
     return HttpResponse(res)
 
 

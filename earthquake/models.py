@@ -55,3 +55,10 @@ class WeiboPost(models.Model):
         unique_together = ("post_id","task_id")
         ordering = ["-post_time","-forward_num","-comment_num","-like_num"]
         db_table = "weibo_post"
+class event_time_line(models.Model):
+    content = models.CharField(max_length=1000)
+    url = models.CharField(max_length=200)
+    time = models.DateTimeField(null=True, blank=True)
+    number  = models.IntegerField()
+    class Meta:
+        db_table = "event_time_line"
